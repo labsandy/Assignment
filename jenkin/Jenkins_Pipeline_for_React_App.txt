@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        AWS_ACCOUNT_ID = '980326058463'
+        AWS_ACCOUNT_ID = '980326158363'
         AWS_REGION = 'ap-south-1'
         ECR_REPOSITORY = 'creditmantri-dockerregistry'
         APP_NAME = 'react-app'

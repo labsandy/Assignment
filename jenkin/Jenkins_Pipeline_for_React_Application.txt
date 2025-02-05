@@ -51,7 +51,7 @@ pipeline {
             steps {
                 script {
                     echo 'Building Docker image...'
-                    sh 'cd /home/jenkins/react-app && docker build -t 980326058463.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest .'
+                    sh 'cd /home/jenkins/react-app && docker build -t 980326058000.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest .'
                 }
             }
         }
@@ -60,10 +60,10 @@ pipeline {
             steps {
                 script {
                     echo 'Logging in to AWS ECR...'
-                    sh 'aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 980326058463.dkr.ecr.ap-south-1.amazonaws.com'
+                    sh 'aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 980326058000.dkr.ecr.ap-south-1.amazonaws.com'
 
                     echo 'Pushing Docker image to AWS ECR...'
-                    sh 'docker push 980326058463.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest'
+                    sh 'docker push 980326058000.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest'
                 }
             }
         }
@@ -75,10 +75,10 @@ pipeline {
                     sh '''
                         ssh -o "stricthostkeychecking no" -i "/home/jenkins/pem/cmprod-mumbai.pem" ubuntu@172.31.48.252 "
                             sudo bash /home/ubuntu/aws_refresh.sh &&
-                            docker pull 980326058463.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest &&
+                            docker pull 980326058000.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest &&
                             docker stop react-app || true &&
                             docker rm react-app || true &&
-                            docker run -d -p 80:80 --name react-app 980326058463.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest &&
+                            docker run -d -p 80:80 --name react-app 980326058000.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest &&
                             docker update react-app --restart=always &&
                             docker ps | grep react-app
                         "
