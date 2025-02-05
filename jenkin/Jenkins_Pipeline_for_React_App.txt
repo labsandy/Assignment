@@ -1,0 +1,122 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_ACCOUNT_ID = '980326058463'
+        AWS_REGION = 'ap-south-1'
+        ECR_REPOSITORY = 'creditmantri-dockerregistry'
+        APP_NAME = 'react-app'
+        DOCKER_IMAGE = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${APP_NAME}-latest"
+        WORKSPACE_DIR = '/home/jenkins/react-app'
+        REMOTE_HOST = 'ubuntu@172.31.48.252'
+        SSH_KEY = '/home/jenkins/pem/cmprod-mumbai.pem'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                script {
+                    echo 'Checking out the latest code from Git...'
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        git checkout .
+                        git checkout master
+                        git pull origin master
+                    """
+                }
+            }
+        }
+
+        stage('AWS Token Refresh') {
+            steps {
+                script {
+                    echo 'Refreshing AWS token...'
+                    sh "${WORKSPACE_DIR}/AWS-Token-Refresh.sh"
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    echo 'Installing dependencies...'
+                    sh "cd ${WORKSPACE_DIR} && npm install"
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    echo 'Running test suite...'
+                    sh "cd ${WORKSPACE_DIR} && npm test"
+                }
+            }
+        }
+
+        stage('Build React Application') {
+            steps {
+                script {
+                    echo 'Building React application...'
+                    sh "cd ${WORKSPACE_DIR} && npm run build"
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                script {
+                    echo 'Building Docker image without hardcoded env variables...'
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        docker build --build-arg REACT_APP_API_URL=\$REACT_APP_API_URL -t ${DOCKER_IMAGE} .
+                    """
+                }
+            }
+        }
+
+        stage('Push to AWS ECR') {
+            steps {
+                script {
+                    echo 'Logging in to AWS ECR...'
+                    sh """
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                    """
+
+                    echo 'Pushing Docker image to AWS ECR...'
+                    sh "docker push ${DOCKER_IMAGE}"
+                }
+            }
+        }
+
+        stage('Deploy to Server') {
+            steps {
+                script {
+                    echo 'Deploying React application with runtime environment variables...'
+                    sh """
+                        ssh -o "StrictHostKeyChecking=no" -i "${SSH_KEY}" ${REMOTE_HOST} "
+                            sudo bash /home/ubuntu/aws_refresh.sh &&
+                            docker pull ${DOCKER_IMAGE} &&
+                            docker stop ${APP_NAME} || true &&
+                            docker rm ${APP_NAME} || true &&
+                            docker run -d -p 80:80 --name ${APP_NAME} \\
+                                -e REACT_APP_API_URL=\$REACT_APP_API_URL \\
+                                ${DOCKER_IMAGE} &&
+                            docker update ${APP_NAME} --restart=always &&
+                            docker ps | grep ${APP_NAME}
+                        "
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}

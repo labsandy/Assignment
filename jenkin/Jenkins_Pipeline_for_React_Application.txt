@@ -1,0 +1,99 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                script {
+                    echo 'Checking out the latest code from Git...'
+                    sh 'cd /home/jenkins/react-app && git checkout . && git checkout master && git pull origin master'
+                }
+            }
+        }
+
+        stage('AWS-Token-Refresh') {
+            steps {
+                script {
+                    echo 'Refreshing AWS token...'
+                    sh '/home/jenkins/react-app/AWS-Token-Refresh.sh'
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                script {
+                    echo 'Installing dependencies...'
+                    sh 'cd /home/jenkins/react-app && npm install'
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                script {
+                    echo 'Running test suite...'
+                    sh 'cd /home/jenkins/react-app && npm test'
+                }
+            }
+        }
+
+        stage('Build React Application') {
+            steps {
+                script {
+                    echo 'Building React application...'
+                    sh 'cd /home/jenkins/react-app && npm run build'
+                }
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                script {
+                    echo 'Building Docker image...'
+                    sh 'cd /home/jenkins/react-app && docker build -t 980326058463.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest .'
+                }
+            }
+        }
+
+        stage('Push to AWS ECR') {
+            steps {
+                script {
+                    echo 'Logging in to AWS ECR...'
+                    sh 'aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin 980326058463.dkr.ecr.ap-south-1.amazonaws.com'
+
+                    echo 'Pushing Docker image to AWS ECR...'
+                    sh 'docker push 980326058463.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    echo 'Deploying React application...'
+                    sh '''
+                        ssh -o "stricthostkeychecking no" -i "/home/jenkins/pem/cmprod-mumbai.pem" ubuntu@172.31.48.252 "
+                            sudo bash /home/ubuntu/aws_refresh.sh &&
+                            docker pull 980326058463.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest &&
+                            docker stop react-app || true &&
+                            docker rm react-app || true &&
+                            docker run -d -p 80:80 --name react-app 980326058463.dkr.ecr.ap-south-1.amazonaws.com/creditmantri-dockerregistry:react-app-latest &&
+                            docker update react-app --restart=always &&
+                            docker ps | grep react-app
+                        "
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
