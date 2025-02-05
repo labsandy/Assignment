@@ -47,7 +47,7 @@ resource "aws_internet_gateway" "igw" {
 
 # 5. Create NAT Gateway for Private Subnet
 resource "aws_eip" "nat" {
-  vpc = true
+  domain = "vpc"
 }
 
 resource "aws_nat_gateway" "nat" {
@@ -134,24 +134,24 @@ resource "aws_security_group" "ec2_sg" {
 
 # 11. Deploy EC2 Instance in Private Subnet
 resource "aws_instance" "react_app" {
-  ami           = var.ami_id
-  instance_type = var.instance_type
-  subnet_id     = aws_subnet.private.id
-  security_groups = [aws_security_group.ec2_sg.name]
+  ami             = var.ami_id
+  instance_type   = var.instance_type
+  subnet_id       = aws_subnet.private.id
+  security_groups = [aws_security_group.ec2_sg.id]
 
   tags = {
     Name = "react-app-instance"
   }
 
   # Install Docker and run the React app container
-  user_data = <<-EOF
-              #!/bin/bash
-              yum update -y
-              amazon-linux-extras install docker -y
-              service docker start
-              usermod -a -G docker ec2-user
-              docker run -d -p 80:80 ${var.docker_image}
-              EOF
+  #  user_data = <<-EOF
+  #              #!/bin/bash
+  #              yum update -y
+  #              amazon-linux-extras install docker -y
+  #              service docker start
+  #              usermod -a -G docker ec2-user
+  #              docker run -d -p 80:80 ${var.docker_image}
+  #              EOF
 }
 
 # Fetch available availability zones
